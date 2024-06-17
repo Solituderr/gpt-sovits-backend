@@ -28,3 +28,18 @@ type OutputData struct {
 		Name string `json:"name"`
 	} `json:"data"`
 }
+
+// info
+type TTSInfo struct {
+	UnnamedEndpoints map[string]EndPoint `json:"unnamed_endpoints"`
+}
+
+type EndPoint struct {
+	Parameters []struct {
+		Component  string `json:"component"`
+		Label      string `json:"label"`
+		PythonType struct {
+			Description string `json:"description"`
+		} `json:"python_type"`
+	} `json:"parameters"`
+}

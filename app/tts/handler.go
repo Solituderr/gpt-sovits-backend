@@ -1,6 +1,7 @@
 package tts
 
 import (
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"net/http"
 )
@@ -8,6 +9,7 @@ import (
 type TTSService interface {
 	BindCharacter(req Req) error
 	GetWavAudio(req Req) (string, error)
+	GetTTSInfo() error
 }
 
 func TTSHandler(service TTSService) func(ctx *gin.Context) {
@@ -22,5 +24,12 @@ func TTSHandler(service TTSService) func(ctx *gin.Context) {
 		} else {
 			ctx.String(http.StatusOK, audio)
 		}
+	}
+}
+
+func InfoHandler(service TTSService) func(ctx *gin.Context) {
+	return func(ctx *gin.Context) {
+		err := service.GetTTSInfo()
+		fmt.Println(err)
 	}
 }

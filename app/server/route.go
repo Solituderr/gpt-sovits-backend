@@ -8,4 +8,5 @@ import (
 func SetRoutes(r *gin.Engine, s *Service) {
 	r.Use(tts.Cors())
 	r.POST("/tts", tts.TTSHandler(s.svs.tts))
+	r.GET("/info", tts.InfoHandler(s.svs.tts))
 }
