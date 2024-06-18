@@ -22,4 +22,10 @@ tts:
 
 ### 编译和运行
 - 需要有golang环境 > 1.18
-- 根目录下执行 `go build -o tts main.go` , 然后 `./tts`
+- 根目录下执行 `go mod tidy && go build -o tts main.go` , 然后 `./tts`
+
+### TODO
+* [x] 支持多自定义多角色
+* [ ] 优化hash逻辑
+* [ ] docker一键部署
+* [ ] 支持较高并发
