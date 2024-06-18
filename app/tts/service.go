@@ -93,7 +93,7 @@ func (bs *BasicService) GetWavAudio(req Req) (string, error) {
 			false,
 		},
 		SessionHash: bb,
-		FnIndex:     3,
+		FnIndex:     fnIndex3,
 	}
 	bs.ws.NewWSClient()
 	defer bs.ws.Close()
@@ -113,7 +113,7 @@ func (bs *BasicService) GetWavAudio(req Req) (string, error) {
 			case "send_data":
 				bs.ws.Send(data)
 			case "send_hash":
-				tmp := map[string]interface{}{"fn_index": 3, "session_hash": bb}
+				tmp := map[string]interface{}{"fn_index": fnIndex3, "session_hash": bb}
 				tt, err := json.Marshal(tmp)
 				if err != nil {
 					return "", err
