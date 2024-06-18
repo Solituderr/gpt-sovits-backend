@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/gorilla/websocket"
 	"log"
+	"strings"
 )
 
 func (c *Client) sendLoop() {
@@ -26,6 +27,9 @@ func (c *Client) receiveLoop() {
 			break
 		}
 		if _, p, err := c.conn.ReadMessage(); err != nil {
+			if strings.Contains(err.Error(), "1000") {
+				break
+			}
 			log.Println(err)
 		} else {
 			fmt.Println(string(p))

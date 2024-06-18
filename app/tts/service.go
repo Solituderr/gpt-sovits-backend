@@ -15,6 +15,12 @@ import (
 	"time"
 )
 
+const (
+	fnIndex1 = 1
+	fnIndex2 = 2
+	fnIndex3 = 3
+)
+
 type WebSocketService interface {
 	NewWSClient()
 	Send(data []byte)
@@ -23,25 +29,32 @@ type WebSocketService interface {
 }
 
 type BasicService struct {
-	ws  WebSocketService
-	url string
+	ws           WebSocketService
+	url          string
+	characters   []string
+	characterMap map[string]*Character
 }
 
-func (bs *BasicService) BindCharacter(req Req) error {
-	bb := GetRandStr()
-	//tsr := TTSSendReq{Data: []}
+func (bs *BasicService) BindCharacter(model string, hash string, fnIndex int) error {
+	bs.ws.NewWSClient()
+	defer bs.ws.Close()
+	tsr := TTSSendReq{Data: []interface{}{model}, FnIndex: fnIndex, SessionHash: hash}
+	data, err := json.Marshal(tsr)
+	if err != nil {
+		return err
+	}
 	for {
 		select {
 		case msg := <-bs.ws.Receive():
 			var trr TTSRecvResp
-			if err := json.Unmarshal(msg, &trr); err != nil {
+			if err = json.Unmarshal(msg, &trr); err != nil {
 				return err
 			}
 			switch trr.Msg {
 			case "send_data":
-				bs.ws.Send([]byte{})
+				bs.ws.Send(data)
 			case "send_hash":
-				tmp := map[string]interface{}{"fn_index": 1, "session_hash": bb}
+				tmp := map[string]interface{}{"fn_index": 1, "session_hash": hash}
 				tt, err := json.Marshal(tmp)
 				if err != nil {
 					return err
@@ -55,15 +68,21 @@ func (bs *BasicService) BindCharacter(req Req) error {
 }
 
 func (bs *BasicService) GetWavAudio(req Req) (string, error) {
-	//bb := GetRandStr()
-	bb := "smwof9n92f"
+	bb := GetRandStr()
+	cInfo := bs.characterMap[req.Character]
+	if err := bs.BindCharacter(cInfo.ModelSoVits, bb, fnIndex1); err != nil {
+		return "", err
+	}
+	if err := bs.BindCharacter(cInfo.ModelGPT, bb, fnIndex2); err != nil {
+		return "", err
+	}
 	tsr := TTSSendReq{
 		Data: []interface{}{
 			MetaData{
-				Data: "ata:audio/wav;base64," + AudioToBase64(),
-				Name: "jay参考.wav",
+				Data: cInfo.AudioBase64,
+				Name: cInfo.Name,
 			},
-			"哎后来他听到我的歌，他说，你这些歌曲别人不用干脆你自己唱唱看好了",
+			cInfo.Words,
 			"中文",
 			req.Text,
 			req.Language,
@@ -74,24 +93,27 @@ func (bs *BasicService) GetWavAudio(req Req) (string, error) {
 			false,
 		},
 		SessionHash: bb,
-		FnIndex:     1,
+		FnIndex:     3,
 	}
 	bs.ws.NewWSClient()
 	defer bs.ws.Close()
-	data, _ := json.Marshal(tsr)
+	data, err := json.Marshal(tsr)
+	if err != nil {
+		return "", err
+	}
 	var audio string
 	for {
 		select {
 		case msg := <-bs.ws.Receive():
 			var trr TTSRecvResp
-			if err := json.Unmarshal(msg, &trr); err != nil {
+			if err = json.Unmarshal(msg, &trr); err != nil {
 				return "", err
 			}
 			switch trr.Msg {
 			case "send_data":
 				bs.ws.Send(data)
 			case "send_hash":
-				tmp := map[string]interface{}{"fn_index": 1, "session_hash": bb}
+				tmp := map[string]interface{}{"fn_index": 3, "session_hash": bb}
 				tt, err := json.Marshal(tmp)
 				if err != nil {
 					return "", err
@@ -116,28 +138,26 @@ func GetRandStr() string {
 	return string(b)
 }
 
-func (bs *BasicService) GetTTSInfo() error {
+func (bs *BasicService) GetTTSInfo() (sovitsModels []string, gptModels []string, err error) {
 	uri := url.URL{Scheme: "https", Host: bs.url, Path: "/info"}
 	resp, err := http.Get(uri.String())
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	var info TTSInfo
 	if err = json.Unmarshal(body, &info); err != nil {
-		return err
+		return nil, nil, err
 	}
 	if len(info.UnnamedEndpoints) <= 0 {
-		return errors.New("获取info失败")
+		return nil, nil, errors.New("获取info失败")
 	}
 	sovits := info.UnnamedEndpoints["1"].Parameters[0].PythonType.Description
-	sovitsModels := ExtractModel(sovits)
+	sovitsModels = ExtractModel(sovits)
 	gpt := info.UnnamedEndpoints["2"].Parameters[0].PythonType.Description
-	gptModels := ExtractModel(gpt)
-	fmt.Println(sovitsModels)
-	fmt.Println(gptModels)
-	return nil
+	gptModels = ExtractModel(gpt)
+	return sovitsModels, gptModels, nil
 }
 
 func ExtractModel(fullString string) []string {
@@ -159,9 +179,9 @@ func ExtractModel(fullString string) []string {
 	return s
 }
 
-func AudioToBase64() string {
+func AudioToBase64(path string) string {
 	// 读取 WAV 文件
-	data, err := os.ReadFile("./jay参考.wav")
+	data, err := os.ReadFile(path)
 	if err != nil {
 		log.Fatalf("Error reading file: %s", err)
 	}
@@ -173,9 +193,55 @@ func AudioToBase64() string {
 	return encodedData
 }
 
-func NewBasicService(url string, ws WebSocketService) *BasicService {
-	return &BasicService{
-		url: url,
-		ws:  ws,
+func NewBasicService(url string, ws WebSocketService) (*BasicService, error) {
+	bs := &BasicService{
+		url:          url,
+		ws:           ws,
+		characterMap: make(map[string]*Character),
 	}
+	// 获取 model 信息
+	sovits, gpts, err := bs.GetTTSInfo()
+	if err != nil {
+		return nil, err
+	}
+	// 初始化 角色信息
+	audioFilePath := "./audio"
+	files, err := os.ReadDir(audioFilePath)
+	if err != nil {
+		return nil, err
+	}
+	for _, file := range files {
+		if !file.IsDir() {
+			name := file.Name()
+			path := audioFilePath + "/" + name
+			lis := strings.Split(name, "+")
+			character, words := lis[0], lis[1]
+			bs.characters = append(bs.characters, character)
+			var sovit, gpt string
+			for i := 0; i < len(sovits); i++ {
+				if strings.Contains(sovits[i], character) {
+					sovit = sovits[i]
+					break
+				}
+			}
+			for i := 0; i < len(gpts); i++ {
+				if strings.Contains(gpts[i], character) {
+					gpt = gpts[i]
+					break
+				}
+			}
+			if sovit == "" || gpt == "" {
+				return nil, errors.New("没有数据找到模型")
+			}
+			bs.characterMap[character] = &Character{
+				Name:        name,
+				ModelSoVits: sovit,
+				ModelGPT:    gpt,
+				Words:       words,
+				AudioBase64: "ata:audio/wav;base64," + AudioToBase64(path),
+				Hash:        "",
+			}
+		}
+	}
+	return bs, nil
 }

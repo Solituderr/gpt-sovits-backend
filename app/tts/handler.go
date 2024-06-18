@@ -7,9 +7,9 @@ import (
 )
 
 type TTSService interface {
-	BindCharacter(req Req) error
+	BindCharacter(model string, hash string, fnIndex int) error
 	GetWavAudio(req Req) (string, error)
-	GetTTSInfo() error
+	GetTTSInfo() (sovitsModels []string, gptModels []string, err error)
 }
 
 func TTSHandler(service TTSService) func(ctx *gin.Context) {
@@ -29,7 +29,7 @@ func TTSHandler(service TTSService) func(ctx *gin.Context) {
 
 func InfoHandler(service TTSService) func(ctx *gin.Context) {
 	return func(ctx *gin.Context) {
-		err := service.GetTTSInfo()
+		_, _, err := service.GetTTSInfo()
 		fmt.Println(err)
 	}
 }

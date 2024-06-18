@@ -9,9 +9,13 @@ import (
 var r *gin.Engine
 
 func Init() {
+	var err error
 	s := NewServerService()
 	s.svs.ws = websock.NewBasicService(s.conf["gradio_url"])
-	s.svs.tts = tts.NewBasicService(s.conf["gradio_url"], s.svs.ws)
+	s.svs.tts, err = tts.NewBasicService(s.conf["gradio_url"], s.svs.ws)
+	if err != nil {
+		panic(err)
+	}
 	r = gin.Default()
 	SetRoutes(r, s)
 }

@@ -43,3 +43,13 @@ type EndPoint struct {
 		} `json:"python_type"`
 	} `json:"parameters"`
 }
+
+// character 属性
+type Character struct {
+	Name        string
+	ModelSoVits string
+	ModelGPT    string
+	Words       string
+	AudioBase64 string
+	Hash        string
+}
